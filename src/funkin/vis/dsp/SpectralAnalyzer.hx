@@ -58,7 +58,7 @@ class SpectralAnalyzer
     #end
 
     private function freqToBin(freq:Float, mathType:MathType = Round):Int
-    {
+    {       
         var bin = freq * fftN2 / audioClip.audioBuffer.sampleRate;
         return switch (mathType) {
             case Round: Math.round(bin);
@@ -159,11 +159,11 @@ class SpectralAnalyzer
         resizeBlackmanWindow(fftN);
 	}
 
-	public function getLevels(?levels:Array<Bar>):Array<Bar>
+	public function getLevels():Array<Bar>
 	{
-        if(levels == null) levels = new Array<Bar>();
         #if web
         var amplitudes:Array<Float> = htmlAnalyzer.getFloatFrequencyData();
+        var levels = new Array<Bar>();
 
         for (i in 0...bars.length) {
             var bar = bars[i];
@@ -180,13 +180,7 @@ class SpectralAnalyzer
             value = normalizedB(value);
             bar.recentValues.push(value);
             var recentPeak = bar.recentValues.peak;
-
-            if(levels[i] != null)
-            {
-                levels[i].value = value;
-                levels[i].peak = recentPeak;
-            }
-            else levels.push({value: value, peak: recentPeak});
+            levels.push({value: value, peak: recentPeak});
         }
 
         return levels;
@@ -196,7 +190,7 @@ class SpectralAnalyzer
 		var startFrame = audioClip.currentFrame;
         startFrame -= startFrame % numOctets;
 		var segment = audioSource.buffer.data.subarray(startFrame, min(startFrame + wantedLength, audioSource.buffer.data.length));
-		var signal = getSignal(segment, audioSource.buffer.bitsPerSample);
+		var signal = segment.toInterleaved(audioSource.buffer.bitsPerSample);
 
 		if (audioSource.buffer.channels > 1) {
 			var mixed = new Array<Float>();
@@ -213,16 +207,15 @@ class SpectralAnalyzer
 
 		var range = 16;
         var freqs = fft.calcFreq(signal);
-		var bars = vis.makeLogGraph(freqs, barCount + 1, Math.floor(maxDb - minDb), range);
+		var bars = vis.makeLogGraph(freqs, barCount, Math.floor(maxDb - minDb), range);
 
-        if (bars.length - 1 > barHistories.length) {
-            barHistories.resize(bars.length - 1);
+        if (bars.length > barHistories.length) {
+            barHistories.resize(bars.length);
         }
 
-
-        levels.resize(bars.length-1);
-        for (i in 0...bars.length-1) {
-
+        var levels = new Array<Bar>();
+        levels.resize(bars.length);
+        for (i in 0...bars.length) {
             if (barHistories[i] == null) barHistories[i] = new RecentPeakFinder();
             var recentValues = barHistories[i];
             var value = bars[i] / range;
@@ -237,47 +230,11 @@ class SpectralAnalyzer
 
             var recentPeak = recentValues.peak;
 
-            if(levels[i] != null)
-            {
-                levels[i].value = value;
-                levels[i].peak = recentPeak;
-            }
-            else levels[i] = {value: value, peak: recentPeak};
+            levels[i] = {value: value, peak: recentPeak};
         }
         return levels;
         #end
 	}
-
-    // Prevents a memory leak by reusing array
-    var _buffer:Array<Float> = [];
-	function getSignal(data:lime.utils.UInt8Array, bitsPerSample:Int):Array<Float>
-    {
-        switch(bitsPerSample)
-        {
-            case 8:
-                _buffer.resize(data.length);
-                for (i in 0...data.length)
-                    _buffer[i] = data[i] / 128.0;
-
-            case 16:
-                _buffer.resize(Std.int(data.length / 2));
-                for (i in 0..._buffer.length)
-                    _buffer[i] = data.getInt16(i * 2) / 32767.0;
-
-            case 24:
-                _buffer.resize(Std.int(data.length / 3));
-                for (i in 0..._buffer.length)
-                    _buffer[i] = data.getInt24(i * 3) / 8388607.0;
-
-            case 32:
-                _buffer.resize(Std.int(data.length / 4));
-                for (i in 0..._buffer.length)
-                    _buffer[i] = data.getInt32(i * 4) / 2147483647.0;
-
-            default: trace('Unknown integer audio format');
-        }
-        return _buffer;
-    }
 
     @:generic
     static inline function clamp<T:Float>(val:T, min:T, max:T):T
