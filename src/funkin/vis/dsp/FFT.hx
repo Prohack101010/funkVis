@@ -30,7 +30,6 @@ class FFT {
 		Hermitian-symmetric so we only return the positive frequencies.
 	**/
 	public static function rfft(input:Array<Float>) : Array<Complex> {
-		checkAndComputeTwiddles(input.length);
 		final s = fft(input.map(Complex.fromReal));
 		return s.slice(0, Std.int(s.length / 2) + 1);
 	}
@@ -132,16 +131,6 @@ class FFT {
 		return fs;
 	}
 	
-	private static function checkAndComputeTwiddles(n:Int, inverse:Bool = false) : Void {
-
-		var twiddleLength:Int = inverse ? twiddleFactorsInversed?.length ?? 0 : twiddleFactors?.length ?? 0;
-
-		if (twiddleLength * 4 != n)
-			precomputeTwiddleFactors(n, inverse);
-
-
-	}
-
 	private static var twiddleFactorsInversed:Array<Complex>;
 
 	private static var twiddleFactors:Array<Complex>;
